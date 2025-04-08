@@ -11,7 +11,6 @@ import (
 	"bharvest.io/axelmon/server"
 	"bharvest.io/axelmon/wallet"
 	rewardTypes "github.com/axelarnetwork/axelar-core/x/reward/types"
-	tssTypes "github.com/axelarnetwork/axelar-core/x/tss/types"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
