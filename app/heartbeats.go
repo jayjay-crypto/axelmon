@@ -71,8 +71,13 @@ func (c *Config) findHeartbeat(ctx context.Context, clientGRPC *grpc.Client, hea
 			// For avoid count as miss for can't fetch txs, return true
 			return true, err
 		}
+
+		log.Info(fmt.Sprintf("Found %d transactions at height %d", len(txs), heartbeatHeight))
+		
 		for _, tx := range txs {
+			log.Info(fmt.Sprintf("Checking transaction with hash: %s", tx.TxHash))
 			for _, msg := range tx.Body.Messages {
+				log.Info(fmt.Sprintf("Message type: %s", msg.TypeUrl))
 				if msg.TypeUrl == "/axelar.reward.v1beta1.RefundMsgRequest" {
 					refundMsg := rewardTypes.RefundMsgRequest{}
 					err = refundMsg.Unmarshal(msg.Value)
@@ -84,6 +89,7 @@ func (c *Config) findHeartbeat(ctx context.Context, clientGRPC *grpc.Client, hea
 					
 					// Vérifier si le sender correspond à l'une des deux adresses possibles
 					if refundMsg.Sender.Equals(broadcasterAcc.Acc) || refundMsg.Sender.String() == "axelar17xpfvakm2amg962yls6f84z3kell8c5l5h4gqu" {
+						log.Info(fmt.Sprintf("Sender match found! Inner message type: %s", refundMsg.InnerMessage.TypeUrl))
 						if refundMsg.InnerMessage.TypeUrl == "/axelar.tss.v1beta1.HeartBeatRequest" {
 							c.alert(fmt.Sprintf("Found heartbeat of the broadcaster"), []string{}, true, false)
 							return true, nil
