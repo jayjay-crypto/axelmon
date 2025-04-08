@@ -75,7 +75,7 @@ func (c *Config) findHeartbeat(ctx context.Context, clientGRPC *grpc.Client, hea
 		log.Info(fmt.Sprintf("Found %d transactions at height %d", len(txs), heartbeatHeight))
 		
 		for _, tx := range txs {
-			log.Info(fmt.Sprintf("Checking transaction with hash: %s", tx.TxHash))
+			log.Info(fmt.Sprintf("Checking transaction with hash: %s", tx.Hash))
 			for _, msg := range tx.Body.Messages {
 				log.Info(fmt.Sprintf("Message type: %s", msg.TypeUrl))
 				if msg.TypeUrl == "/axelar.reward.v1beta1.RefundMsgRequest" {
