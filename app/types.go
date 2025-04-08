@@ -25,6 +25,7 @@ type Config struct {
 		ExceptChainsString   string    `toml:"except_chains"`
 		ExceptChains         map[string]bool
 		ValidatorAcc         string      `toml:"validator_acc"`
+		BroadcasterAcc       string      `toml:"broadcaster_acc"`
 		RPC                  string      `toml:"rpc"`
 		API                  string      `toml:"api"`
 		GRPC                 string      `toml:"grpc"`

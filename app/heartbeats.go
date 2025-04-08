@@ -9,6 +9,7 @@ import (
 	"bharvest.io/axelmon/log"
 	"bharvest.io/axelmon/metrics"
 	"bharvest.io/axelmon/server"
+	"bharvest.io/axelmon/wallet"
 	rewardTypes "github.com/axelarnetwork/axelar-core/x/reward/types"
 	tssTypes "github.com/axelarnetwork/axelar-core/x/tss/types"
 	"github.com/prometheus/client_golang/prometheus"
@@ -58,6 +59,11 @@ func (c *Config) checkHeartbeats(ctx context.Context) error {
 }
 
 func (c *Config) findHeartbeat(ctx context.Context, clientGRPC *grpc.Client, heartbeatHeight int64, tryCnt int) (bool, error) {
+	broadcasterAcc, err := wallet.NewWallet(ctx, c.General.BroadcasterAcc)
+	if err != nil {
+		return false, fmt.Errorf("failed to create wallet for broadcaster: %v", err)
+	}
+
 	for j := 0; j < tryCnt; j++ {
 		log.Info(fmt.Sprintf("Search heartbeat on height: %d", heartbeatHeight))
 
@@ -80,7 +86,7 @@ func (c *Config) findHeartbeat(ctx context.Context, clientGRPC *grpc.Client, hea
 						if err != nil {
 							return false, err
 						}
-						if heartbeat.Sender.Equals(c.Wallet.Proxy.Acc) {
+						if heartbeat.Sender.Equals(broadcasterAcc.Acc) {
 							c.alert(fmt.Sprintf("Found heartbeat of the broadcaster"), []string{}, true, false)
 							return true, nil
 						}

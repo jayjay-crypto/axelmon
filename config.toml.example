@@ -22,6 +22,9 @@ period = 60
 
 validator_acc = "axelar123..."
 
+# The broadcaster account address that sends heartbeats
+broadcaster_acc = "axelar123..."
+
 # Chains you don't want to monitor.
 # If empty, all external votes will be monitored.
 # e.g. "aurora, ethereum"
