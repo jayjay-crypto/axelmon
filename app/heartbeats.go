@@ -115,8 +115,9 @@ func (c *Config) findHeartBeatHeight(ctx context.Context) (int64, error) {
 	if height%50 != 0 {
 		heartbeatHeight = height - (height % 50) + 1
 	} else {
-		heartbeatHeight = heartbeatHeight - 50 + 1
+		heartbeatHeight = height - 50 + 1
 	}
 
+	log.Info(fmt.Sprintf("Hauteur actuelle: %d, Prochain bloc de heartbeat: %d", height, heartbeatHeight))
 	return heartbeatHeight, nil
 }
