@@ -80,13 +80,8 @@ func (c *Config) findHeartbeat(ctx context.Context, clientGRPC *grpc.Client, hea
 					if err != nil {
 						return false, err
 					}
-					if refundMsg.InnerMessage.TypeUrl == "/axelar.tss.v1beta1.HeartBeatRequest" {
-						heartbeat := tssTypes.HeartBeatRequest{}
-						err = heartbeat.Unmarshal(refundMsg.InnerMessage.Value)
-						if err != nil {
-							return false, err
-						}
-						if heartbeat.Sender.Equals(broadcasterAcc.Acc) {
+					if refundMsg.Sender.Equals(broadcasterAcc.Acc) {
+						if refundMsg.InnerMessage.TypeUrl == "/axelar.tss.v1beta1.HeartBeatRequest" {
 							c.alert(fmt.Sprintf("Found heartbeat of the broadcaster"), []string{}, true, false)
 							return true, nil
 						}
