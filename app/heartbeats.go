@@ -64,33 +64,28 @@ func (c *Config) findHeartbeat(ctx context.Context, clientGRPC *grpc.Client, hea
 	}
 
 	for j := 0; j < tryCnt; j++ {
-		log.Info(fmt.Sprintf("Search heartbeat on height: %d", heartbeatHeight))
+		log.Info(fmt.Sprintf("Recherche de heartbeat dans le bloc %d", heartbeatHeight))
 
 		txs, err := clientGRPC.GetTxs(ctx, heartbeatHeight)
 		if err != nil {
-			// For avoid count as miss for can't fetch txs, return true
+			log.Info(fmt.Sprintf("Erreur lors de la récupération des transactions du bloc %d: %v", heartbeatHeight, err))
 			return true, err
 		}
 
-		log.Info(fmt.Sprintf("Found %d transactions at height %d", len(txs), heartbeatHeight))
+		log.Info(fmt.Sprintf("Bloc %d: %d transactions trouvées", heartbeatHeight, len(txs)))
 		
 		for _, tx := range txs {
-			log.Info(fmt.Sprintf("Checking transaction with hash: %s", tx.Hash))
 			for _, msg := range tx.Body.Messages {
-				log.Info(fmt.Sprintf("Message type: %s", msg.TypeUrl))
 				if msg.TypeUrl == "/axelar.reward.v1beta1.RefundMsgRequest" {
 					refundMsg := rewardTypes.RefundMsgRequest{}
 					err = refundMsg.Unmarshal(msg.Value)
 					if err != nil {
 						return false, err
 					}
-					log.Info(fmt.Sprintf("Found RefundMsgRequest with sender: %s", refundMsg.Sender))
-					log.Info(fmt.Sprintf("Broadcaster address: %s", broadcasterAcc.Acc))
 					
-					// Vérifier si le sender correspond à l'une des deux adresses possibles
 					if refundMsg.Sender.Equals(broadcasterAcc.Acc) || refundMsg.Sender.String() == "axelar17xpfvakm2amg962yls6f84z3kell8c5l5h4gqu" {
-						log.Info(fmt.Sprintf("Sender match found! Inner message type: %s", refundMsg.InnerMessage.TypeUrl))
 						if refundMsg.InnerMessage.TypeUrl == "/axelar.tss.v1beta1.HeartBeatRequest" {
+							log.Info(fmt.Sprintf("Heartbeat trouvé dans le bloc %d!", heartbeatHeight))
 							c.alert(fmt.Sprintf("Found heartbeat of the broadcaster"), []string{}, true, false)
 							return true, nil
 						}
@@ -101,6 +96,7 @@ func (c *Config) findHeartbeat(ctx context.Context, clientGRPC *grpc.Client, hea
 		heartbeatHeight++
 	}
 
+	log.Info(fmt.Sprintf("Aucun heartbeat trouvé après avoir vérifié %d blocs", tryCnt))
 	return false, nil
 }
 
