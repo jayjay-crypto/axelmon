@@ -19,7 +19,8 @@ import (
 )
 
 type HeartbeatResponse struct {
-	Data struct {
+	Status string `json:"status"`
+	Data   []struct {
 		Height    int64  `json:"height"`
 		TxHash    string `json:"tx_hash"`
 		Timestamp string `json:"timestamp"`
@@ -48,18 +49,18 @@ func (c *Config) checkHeartbeats(ctx context.Context) error {
 	}
 
 	// Décoder la réponse JSON
-	var heartbeats []HeartbeatResponse
-	if err := json.Unmarshal(body, &heartbeats); err != nil {
+	var response HeartbeatResponse
+	if err := json.Unmarshal(body, &response); err != nil {
 		return fmt.Errorf("erreur lors du décodage de la réponse JSON: %v", err)
 	}
 
 	// Vérifier les heartbeats
-	for i, hb := range heartbeats {
+	for i, hb := range response.Data {
 		log.Info(fmt.Sprintf("Heartbeat %d/%d - Hauteur: %d, Hash: %s, Timestamp: %s", 
-			i+1, len(heartbeats), hb.Data.Height, hb.Data.TxHash, hb.Data.Timestamp))
+			i+1, len(response.Data), hb.Height, hb.TxHash, hb.Timestamp))
 		
 		// Vérifier si le heartbeat est récent (moins de 5 minutes)
-		timestamp, err := time.Parse(time.RFC3339, hb.Data.Timestamp)
+		timestamp, err := time.Parse(time.RFC3339, hb.Timestamp)
 		if err != nil {
 			log.Info(fmt.Sprintf("Erreur de parsing du timestamp: %v", err))
 			missCnt++
@@ -67,21 +68,21 @@ func (c *Config) checkHeartbeats(ctx context.Context) error {
 		}
 
 		if time.Since(timestamp) > 5*time.Minute {
-			log.Info(fmt.Sprintf("Heartbeat trop ancien: %s", hb.Data.Timestamp))
+			log.Info(fmt.Sprintf("Heartbeat trop ancien: %s", hb.Timestamp))
 			missCnt++
 		}
 	}
 
-	server.GlobalState.Heartbeat.Missed = fmt.Sprintf("%d / %d", missCnt, len(heartbeats))
+	server.GlobalState.Heartbeat.Missed = fmt.Sprintf("%d / %d", missCnt, len(response.Data))
 	metrics.HeartbeatsCounter.With(prometheus.Labels{"status": "missed"}).Add(float64(missCnt))
-	metrics.HeartbeatsCounter.With(prometheus.Labels{"status": "success"}).Add(float64(len(heartbeats) - missCnt))
+	metrics.HeartbeatsCounter.With(prometheus.Labels{"status": "success"}).Add(float64(len(response.Data) - missCnt))
 	
 	if missCnt >= c.Heartbeat.MissCnt {
 		server.GlobalState.Heartbeat.Status = false
-		c.alert("Heartbeat status", []string{fmt.Sprintf("%d/%d", missCnt, len(heartbeats))}, false, false)
+		c.alert("Heartbeat status", []string{fmt.Sprintf("%d/%d", missCnt, len(response.Data))}, false, false)
 	} else {
 		server.GlobalState.Heartbeat.Status = true
-		c.alert("Heartbeat status", []string{fmt.Sprintf("%d/%d", missCnt, len(heartbeats))}, true, false)
+		c.alert("Heartbeat status", []string{fmt.Sprintf("%d/%d", missCnt, len(response.Data))}, true, false)
 	}
 
 	return nil
