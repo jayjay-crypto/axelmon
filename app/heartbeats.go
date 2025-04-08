@@ -109,7 +109,7 @@ func (c *Config) findHeartBeatHeight(ctx context.Context) (int64, error) {
 	if height%50 != 0 {
 		heartbeatHeight = height - (height % 50) + 1
 	} else {
-		heartbeatHeight = height - 50 + 1
+		heartbeatHeight = heartbeatHeight - 50 + 1
 	}
 
 	return heartbeatHeight, nil
