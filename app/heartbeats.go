@@ -2,7 +2,11 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"time"
 
 	"bharvest.io/axelmon/client/grpc"
 	"bharvest.io/axelmon/client/rpc"
@@ -14,44 +18,70 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type HeartbeatResponse struct {
+	Data struct {
+		Height    int64  `json:"height"`
+		TxHash    string `json:"tx_hash"`
+		Timestamp string `json:"timestamp"`
+	} `json:"data"`
+}
+
 func (c *Config) checkHeartbeats(ctx context.Context) error {
-	clientGRPC := grpc.New(c.General.GRPC)
-	err := clientGRPC.Connect(ctx, c.General.GRPCSecureConnection)
-	defer clientGRPC.Terminate(ctx)
-	if err != nil {
-		return err
-	}
-
-	heartbeatHeight, err := c.findHeartBeatHeight(ctx)
-	if err != nil {
-		return err
-	}
-
 	missCnt := 0
-	log.Info(fmt.Sprintf("Broadcaster: %s", c.Wallet.Proxy.PrintAcc()))
-	for i := 0; i < c.Heartbeat.CheckN; i++ {
-		isFound, err := c.findHeartbeat(ctx, clientGRPC, heartbeatHeight, c.Heartbeat.TryCnt)
+	log.Info(fmt.Sprintf("Broadcaster: %s", c.General.BroadcasterAcc))
+
+	// Construire l'URL de l'API Axelarscan
+	apiURL := fmt.Sprintf("https://api.axelarscan.io/validator/heartbeat?address=%s&limit=%d", 
+		c.General.BroadcasterAcc, c.Heartbeat.CheckN)
+
+	// Faire la requête HTTP
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return fmt.Errorf("erreur lors de la requête à l'API Axelarscan: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Lire le corps de la réponse
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("erreur lors de la lecture de la réponse: %v", err)
+	}
+
+	// Décoder la réponse JSON
+	var heartbeats []HeartbeatResponse
+	if err := json.Unmarshal(body, &heartbeats); err != nil {
+		return fmt.Errorf("erreur lors du décodage de la réponse JSON: %v", err)
+	}
+
+	// Vérifier les heartbeats
+	for i, hb := range heartbeats {
+		log.Info(fmt.Sprintf("Heartbeat %d/%d - Hauteur: %d, Hash: %s, Timestamp: %s", 
+			i+1, len(heartbeats), hb.Data.Height, hb.Data.TxHash, hb.Data.Timestamp))
+		
+		// Vérifier si le heartbeat est récent (moins de 5 minutes)
+		timestamp, err := time.Parse(time.RFC3339, hb.Data.Timestamp)
 		if err != nil {
-			log.Debug(err)
+			log.Info(fmt.Sprintf("Erreur de parsing du timestamp: %v", err))
+			missCnt++
+			continue
 		}
-		if !isFound {
+
+		if time.Since(timestamp) > 5*time.Minute {
+			log.Info(fmt.Sprintf("Heartbeat trop ancien: %s", hb.Data.Timestamp))
 			missCnt++
 		}
-
-		heartbeatHeight -= 50
 	}
 
-	server.GlobalState.Heartbeat.Missed = fmt.Sprintf("%d / %d", missCnt, c.Heartbeat.CheckN)
+	server.GlobalState.Heartbeat.Missed = fmt.Sprintf("%d / %d", missCnt, len(heartbeats))
 	metrics.HeartbeatsCounter.With(prometheus.Labels{"status": "missed"}).Add(float64(missCnt))
-	metrics.HeartbeatsCounter.With(prometheus.Labels{"status": "success"}).Add(float64(c.Heartbeat.CheckN - missCnt))
+	metrics.HeartbeatsCounter.With(prometheus.Labels{"status": "success"}).Add(float64(len(heartbeats) - missCnt))
+	
 	if missCnt >= c.Heartbeat.MissCnt {
 		server.GlobalState.Heartbeat.Status = false
-
-		c.alert("Heartbeat status", []string{fmt.Sprintf("%d/%d", missCnt, c.Heartbeat.CheckN)}, false, false)
+		c.alert("Heartbeat status", []string{fmt.Sprintf("%d/%d", missCnt, len(heartbeats))}, false, false)
 	} else {
 		server.GlobalState.Heartbeat.Status = true
-
-		c.alert("Heartbeat status", []string{fmt.Sprintf("%d/%d", missCnt, c.Heartbeat.CheckN)}, true, false)
+		c.alert("Heartbeat status", []string{fmt.Sprintf("%d/%d", missCnt, len(heartbeats))}, true, false)
 	}
 
 	return nil
@@ -113,11 +143,11 @@ func (c *Config) findHeartBeatHeight(ctx context.Context) (int64, error) {
 
 	var heartbeatHeight int64
 	if height%50 != 0 {
-		heartbeatHeight = height - (height % 50) + 1
+		heartbeatHeight = height - (height % 50)
 	} else {
-		heartbeatHeight = height - 50 + 1
+		heartbeatHeight = height - 50
 	}
 
-	log.Info(fmt.Sprintf("Hauteur actuelle: %d, Prochain bloc de heartbeat: %d", height, heartbeatHeight))
+	log.Info(fmt.Sprintf("Hauteur actuelle: %d, Dernier bloc de heartbeat: %d", height, heartbeatHeight))
 	return heartbeatHeight, nil
 }
