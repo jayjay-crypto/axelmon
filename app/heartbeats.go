@@ -79,7 +79,11 @@ func (c *Config) findHeartbeat(ctx context.Context, clientGRPC *grpc.Client, hea
 					if err != nil {
 						return false, err
 					}
-					if refundMsg.Sender.Equals(broadcasterAcc.Acc) {
+					log.Info(fmt.Sprintf("Found RefundMsgRequest with sender: %s", refundMsg.Sender))
+					log.Info(fmt.Sprintf("Broadcaster address: %s", broadcasterAcc.Acc))
+					
+					// Vérifier si le sender correspond à l'une des deux adresses possibles
+					if refundMsg.Sender.Equals(broadcasterAcc.Acc) || refundMsg.Sender.String() == "axelar17xpfvakm2amg962yls6f84z3kell8c5l5h4gqu" {
 						if refundMsg.InnerMessage.TypeUrl == "/axelar.tss.v1beta1.HeartBeatRequest" {
 							c.alert(fmt.Sprintf("Found heartbeat of the broadcaster"), []string{}, true, false)
 							return true, nil
